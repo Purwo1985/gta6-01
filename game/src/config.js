@@ -1,13 +1,16 @@
-// SOLMAR HEAT — config: every tuning number for the city, the player, cars,
-// traffic, police, missions and the HUD lives here so balancing is one file.
+// SOLMAR HEAT — tuning: every number the game balances on, in one place.
+// City geometry, Rico on foot, the cars, the crowds, the police and the
+// five jobs. Nothing else in the game hard-codes a speed, a price or a
+// distance — change it here and the whole city feels it.
 export const CITY = {
-  blocks: 7, // 7 x 7 blocks of buildings
+  blocks: 7,
   blockSize: 46,
   roadWidth: 14,
-  // Half-extent of the drivable city, derived from blocks.
-  get half() { return (this.blocks * (this.blockSize + this.roadWidth)) / 2; },
-  // World Y of the road surface.
   groundY: 0,
+  // Half the width of the drivable grid, from the block count.
+  get half() {
+    return (this.blocks * (this.blockSize + this.roadWidth)) / 2;
+  },
 };
 
 export const PLAYER = {
@@ -19,7 +22,7 @@ export const PLAYER = {
   punchRange: 2.2,
   punchDamage: 34,
   punchCooldown: 0.45,
-  // How far a punched pedestrian is knocked down the street.
+  // How far a punch sends a pedestrian sliding down the street.
   punchKnockback: 4,
 };
 
@@ -40,7 +43,7 @@ export const TRAFFIC = {
   pedCount: 26,
   carSpeed: 9,
   pedSpeed: 1.6,
-  // Chance per second for a traffic car to turn at an intersection.
+  // Chance each second that a traffic car turns at an intersection.
   turnChance: 0.25,
 };
 
@@ -49,9 +52,9 @@ export const POLICE = {
   chaseSpeed: 34,
   ramDamage: 9,
   bustRange: 2.4,
-  // How far from the player a new police car spawns, on a road.
+  // A fresh patrol car appears about this far from Rico, on a road.
   spawnDistance: 55,
-  // Wanted stars decay after this many seconds with no police in sight.
+  // Seconds out of sight before one star quietly fades away.
   decaySeconds: 14,
 };
 
@@ -62,9 +65,9 @@ export const MISSIONS = [
     giver: 'MARA',
     brief: 'Mara needs a parcel picked up from the docks. Get to the yellow marker.',
     lines: [
-      'MARA: Rico, you are late. Again.',
-      'MARA: Grab the parcel at the docks. No questions, no cops.',
-      'RICO: On it. Tell the harbour rats I say hi.',
+      'MARA: Late again, Rico. The docks. The parcel. No detours.',
+      'MARA: Harbour rats ask questions. You do not answer them.',
+      'RICO: Relax. I was born late — it is my whole brand.',
     ],
     reward: 250,
     kind: 'goto',
@@ -73,10 +76,10 @@ export const MISSIONS = [
     id: 2,
     title: 'Hot Wheels',
     giver: 'MARA',
-    brief: 'A patrol spotted you. Lose the heat — stay out of sight until the stars fade.',
+    brief: 'A patrol camera caught your face. Stay out of sight until the stars fade.',
     lines: [
-      'MARA: You tripped a patrol camera. Lose them, Rico.',
-      'RICO: They always pick the prettiest driver to chase.',
+      'MARA: The cameras have you, Rico. Go dark until they forget.',
+      'RICO: Me? Forgettable? Mara, I am the whole show.',
     ],
     reward: 400,
     kind: 'escape',
@@ -88,8 +91,8 @@ export const MISSIONS = [
     giver: 'TIO BENNY',
     brief: 'Tio Benny needs a cab, fast. Steal any car and drop him at the Palms Hotel.',
     lines: [
-      'TIO BENNY: My knees, Rico! The hotel, and step on it!',
-      'RICO: Buckle up, Tio. Solmar traffic waits for no one.',
+      'TIO BENNY: Rico! These knees were not built for waiting!',
+      'RICO: Get in, Tio. Solmar traffic waits for no one — especially us.',
     ],
     reward: 350,
     kind: 'taxi',
@@ -100,8 +103,8 @@ export const MISSIONS = [
     giver: 'MARA',
     brief: 'The crew hit the marina vault. Drive the getaway car to the safehouse — cops on your tail.',
     lines: [
-      'MARA: Vault is open. Drive like the whole city is watching.',
-      'RICO: It is. That is the fun part.',
+      'MARA: Vault is open. Drive like the whole city is watching you.',
+      'RICO: It is watching. That is the best part.',
     ],
     reward: 900,
     kind: 'getaway',

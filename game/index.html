@@ -5,47 +5,200 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SOLMAR HEAT — Streets of Porto Solmar</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1210;
-    font-family: "Trebuchet MS", Verdana, sans-serif; }
-  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  #error-box { position: fixed; top: 8px; left: 8px; z-index: 60; display: none; background: #a00;
-    color: #fff; padding: 6px 10px; font-size: 13px; border-radius: 4px; }
+  :root {
+    --ink: #fff;
+    --gold: #ffd21f;
+    --mint: #7dff9a;
+    --panel: rgba(0, 0, 0, .45);
+    --panel-soft: rgba(0, 0, 0, .55);
+    --panel-solid: rgba(0, 0, 0, .6);
+  }
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #1a1210;
+    font-family: "Trebuchet MS", Verdana, sans-serif;
+  }
+  #game {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+  #status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  #error-box {
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    z-index: 60;
+    display: none;
+    background: #a00;
+    color: var(--ink);
+    padding: 6px 10px;
+    font-size: 13px;
+    border-radius: 4px;
+  }
   /* ---------- HUD ---------- */
-  #hud { position: fixed; inset: 0; pointer-events: none; display: none; color: #fff;
-    text-shadow: 0 1px 3px rgba(0,0,0,.8); z-index: 10; }
-  #clock { position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-    font-size: 15px; letter-spacing: 2px; font-weight: bold; }
-  #wanted { position: absolute; top: 10px; right: 14px; font-size: 26px; letter-spacing: 3px; }
-  #cash { position: absolute; top: 42px; right: 14px; font-size: 22px; font-weight: bold; color: #7dff9a; }
-  #objective { position: absolute; top: 10px; left: 14px; max-width: 340px; font-size: 15px;
-    background: rgba(0,0,0,.45); padding: 8px 10px; border-left: 4px solid #ffd21f; border-radius: 3px; }
-  #dialogue { position: absolute; bottom: 170px; left: 50%; transform: translateX(-50%);
-    max-width: 640px; text-align: center; font-size: 18px; font-style: italic;
-    background: rgba(0,0,0,.55); padding: 10px 16px; border-radius: 6px; display: none; }
-  #toast { position: absolute; bottom: 230px; left: 50%; transform: translateX(-50%);
-    font-size: 17px; font-weight: bold; color: #ffd21f; background: rgba(0,0,0,.55);
-    padding: 8px 14px; border-radius: 6px; display: none; }
-  #minimap { position: absolute; left: 14px; bottom: 14px; width: 168px; height: 168px;
-    border: 3px solid rgba(255,255,255,.75); border-radius: 50%; background: #141c28; }
+  #hud {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    display: none;
+    color: var(--ink);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .8);
+    z-index: 10;
+  }
+  #clock {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 15px;
+    letter-spacing: 2px;
+    font-weight: bold;
+  }
+  #wanted {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    font-size: 26px;
+    letter-spacing: 3px;
+  }
+  #cash {
+    position: absolute;
+    top: 42px;
+    right: 14px;
+    font-size: 22px;
+    font-weight: bold;
+    color: var(--mint);
+  }
+  #objective {
+    position: absolute;
+    top: 10px;
+    left: 14px;
+    max-width: 340px;
+    font-size: 15px;
+    background: var(--panel);
+    padding: 8px 10px;
+    border-left: 4px solid var(--gold);
+    border-radius: 3px;
+  }
+  #dialogue {
+    position: absolute;
+    bottom: 170px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 640px;
+    text-align: center;
+    font-size: 18px;
+    font-style: italic;
+    background: var(--panel-soft);
+    padding: 10px 16px;
+    border-radius: 6px;
+    display: none;
+  }
+  #toast {
+    position: absolute;
+    bottom: 230px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 17px;
+    font-weight: bold;
+    color: var(--gold);
+    background: var(--panel-soft);
+    padding: 8px 14px;
+    border-radius: 6px;
+    display: none;
+  }
+  #minimap {
+    position: absolute;
+    left: 14px;
+    bottom: 14px;
+    width: 168px;
+    height: 168px;
+    border: 3px solid rgba(255, 255, 255, .75);
+    border-radius: 50%;
+    background: #141c28;
+  }
   #health-wrap { position: absolute; right: 14px; bottom: 14px; width: 190px; }
-  #health-label { font-size: 12px; letter-spacing: 2px; margin-bottom: 3px; text-align: right; }
-  #health-bar { height: 12px; background: rgba(0,0,0,.6); border: 1px solid #fff; border-radius: 6px; overflow: hidden; }
+  #health-label {
+    font-size: 12px;
+    letter-spacing: 2px;
+    margin-bottom: 3px;
+    text-align: right;
+  }
+  #health-bar {
+    height: 12px;
+    background: var(--panel-solid);
+    border: 1px solid var(--ink);
+    border-radius: 6px;
+    overflow: hidden;
+  }
   #health-fill { height: 100%; width: 100%; background: #37e07a; }
   #speed { font-size: 26px; font-weight: bold; text-align: right; margin-top: 4px; }
-  #controls-hint { position: absolute; right: 14px; bottom: 96px; font-size: 12px; text-align: right; opacity: .85; }
+  #controls-hint {
+    position: absolute;
+    right: 14px;
+    bottom: 96px;
+    font-size: 12px;
+    text-align: right;
+    opacity: .85;
+  }
   /* ---------- Screens ---------- */
-  .screen { position: fixed; inset: 0; z-index: 20; display: none; flex-direction: column;
-    align-items: center; justify-content: center; text-align: center; color: #fff;
-    background: linear-gradient(180deg, rgba(20,8,20,.25) 0%, rgba(20,8,20,.78) 100%); cursor: pointer; }
-  .screen h1 { margin: 0; font-size: 64px; letter-spacing: 6px; color: #ffd21f;
-    text-shadow: 0 4px 0 #a33, 0 8px 24px rgba(0,0,0,.7); font-style: italic; }
-  .screen h2 { margin: 6px 0 0; font-size: 20px; letter-spacing: 4px; color: #ffb38a; font-weight: normal; }
+  .screen {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--ink);
+    background: linear-gradient(180deg, rgba(20, 8, 20, .25) 0%, rgba(20, 8, 20, .78) 100%);
+    cursor: pointer;
+  }
+  .screen h1 {
+    margin: 0;
+    font-size: 64px;
+    letter-spacing: 6px;
+    color: var(--gold);
+    text-shadow: 0 4px 0 #a33, 0 8px 24px rgba(0, 0, 0, .7);
+    font-style: italic;
+  }
+  .screen h2 {
+    margin: 6px 0 0;
+    font-size: 20px;
+    letter-spacing: 4px;
+    color: #ffb38a;
+    font-weight: normal;
+  }
   .screen p { max-width: 560px; font-size: 16px; line-height: 1.55; margin: 18px 0 6px; }
-  .screen .keys { font-size: 14px; line-height: 1.9; background: rgba(0,0,0,.5);
-    padding: 12px 22px; border-radius: 8px; margin-top: 14px; }
-  .screen .cta { margin-top: 20px; font-size: 20px; font-weight: bold; color: #7dff9a;
-    animation: blink 1.2s steps(2) infinite; }
+  .screen .keys {
+    font-size: 14px;
+    line-height: 1.9;
+    background: var(--panel-solid);
+    padding: 12px 22px;
+    border-radius: 8px;
+    margin-top: 14px;
+  }
+  .screen .cta {
+    margin-top: 20px;
+    font-size: 20px;
+    font-weight: bold;
+    color: var(--mint);
+    animation: blink 1.2s steps(2) infinite;
+  }
   @keyframes blink { 50% { opacity: .25; } }
   #screen-pause h1 { font-size: 48px; }
 </style>
@@ -76,10 +229,10 @@
 <div class="screen" id="screen-start" style="display:flex">
   <h1>SOLMAR HEAT</h1>
   <h2>STREETS OF PORTO SOLMAR</h2>
-  <p>Rico Vega is back in Porto Solmar — a sun-soaked port city of palms, plazas
-    and fast cars. Run five jobs for Mara, outdrive the Solmar PD, steal what
-    you need, and take the Big Score. The whole city is yours: on foot or
-    behind the wheel.</p>
+  <p>Rico Vega is back in Porto Solmar — a sun-soaked port city of palms,
+    plazas and fast cars. Run five jobs for Mara, outdrive the Solmar PD,
+    steal what you need, and take the Big Score. The whole city is yours:
+    on foot or behind the wheel.</p>
   <div class="keys">
     WASD — walk / drive &nbsp;·&nbsp; SHIFT — run<br>
     E — steal / enter / exit a car &nbsp;·&nbsp; F — punch &nbsp;·&nbsp; H — horn<br>
@@ -96,8 +249,8 @@
 
 <div class="screen" id="screen-over">
   <h1>BUSTED!</h1>
-  <p>The Solmar PD finally caught up with Rico. Your cash and mission progress
-    are saved — get back out there and finish the job.</p>
+  <p>The Solmar PD finally caught up with Rico. Your cash and mission
+    progress are saved — get back out there and finish the job.</p>
   <p id="final-stats"></p>
   <div class="cta">PRESS ENTER OR CLICK TO PLAY AGAIN</div>
 </div>

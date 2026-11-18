@@ -1,7 +1,15 @@
-// SOLMAR HEAT — three: the vendored three.js build is a classic (IIFE) script
-// loaded by a <script src> in index.html, so it lives on window.THREE.
-// This shim is the one place game modules get it from. If the vendored
-// build failed to load, say so plainly instead of dying later on an
-// obscure `THREE is undefined` inside the first module that uses it.
-if (!window.THREE) throw new Error('three.js failed to load (game/vendor/three.min.js)');
-export const THREE = window.THREE;
+// SOLMAR HEAT — three: the single doorway to the vendored three.js build.
+// index.html loads that build as a plain classic script, so the library
+// hangs off the window; every game module asks for it here instead of
+// reaching for the global itself. When the vendor script never arrived,
+// fail at boot with a message a player can actually act on, instead of
+// letting the first module that touches the library die mid-sentence.
+function requireThree() {
+  const lib = window.THREE;
+  if (!lib) {
+    throw new Error('three.js failed to load — check game/vendor/three.min.js');
+  }
+  return lib;
+}
+
+export const THREE = requireThree();

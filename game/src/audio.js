@@ -1,94 +1,118 @@
-// SOLMAR HEAT — audio: every sound is synthesized with WebAudio, no files.
-// A soft synthwave loop (bass + pad + hats), engine hum, siren, punch, cash.
+// SOLMAR HEAT — audio: every sound in the game is synthesized live with
+// WebAudio, so the game ships no sound files at all. A soft synthwave
+// loop (bass, pad, hats) under an engine hum, a two-tone siren, and one
+// short blip per event: punch, cash, horn, crash, click, busted.
 export function createAudio() {
-  let ctx = null;
-  let master = null;
-  let musicGain = null;
-  let engineOsc = null;
-  let engineGain = null;
-  let muted = false;
-  let musicTimer = null;
-  let step = 0;
+  let context = null;
+  let bus = null;
+  let musicBus = null;
+  let engineVoice = null;
+  let engineLevel = null;
+  let silenced = false;
+  let grooveTimer = null;
+  let beat = 0;
 
-  function ensure() {
-    if (ctx) return true;
+  function buildGraph() {
+    if (context) return true;
     try {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      ctx = new AC();
-      master = ctx.createGain();
-      master.gain.value = 0.5;
-      master.connect(ctx.destination);
-      musicGain = ctx.createGain();
-      musicGain.gain.value = 0.16;
-      musicGain.connect(master);
-      engineOsc = ctx.createOscillator();
-      engineOsc.type = 'sawtooth';
-      engineOsc.frequency.value = 55;
-      engineGain = ctx.createGain();
-      engineGain.gain.value = 0;
-      const filt = ctx.createBiquadFilter();
-      filt.type = 'lowpass';
-      filt.frequency.value = 420;
-      engineOsc.connect(filt);
-      filt.connect(engineGain);
-      engineGain.connect(master);
-      engineOsc.start();
+      const AudioCtor = window.AudioContext || window.webkitAudioContext;
+      context = new AudioCtor();
+      bus = context.createGain();
+      bus.gain.value = 0.5;
+      bus.connect(context.destination);
+      musicBus = context.createGain();
+      musicBus.gain.value = 0.16;
+      musicBus.connect(bus);
+      const lowpass = context.createBiquadFilter();
+      lowpass.type = 'lowpass';
+      lowpass.frequency.value = 420;
+      lowpass.connect(bus);
+      engineLevel = context.createGain();
+      engineLevel.gain.value = 0;
+      engineLevel.connect(lowpass);
+      engineVoice = context.createOscillator();
+      engineVoice.type = 'sawtooth';
+      engineVoice.frequency.value = 55;
+      engineVoice.connect(engineLevel);
+      engineVoice.start();
     } catch {
       return false;
     }
     return true;
   }
 
-  function tone(freq, dur, type, vol, when = 0, slideTo = 0) {
-    if (!ctx || muted) return;
-    const t0 = ctx.currentTime + when;
-    const osc = ctx.createOscillator();
-    const g = ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, t0);
-    if (slideTo) osc.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
-    g.gain.setValueAtTime(vol, t0);
-    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
-    osc.connect(g);
-    g.connect(master);
-    osc.start(t0);
-    osc.stop(t0 + dur + 0.05);
+  // One envelope-shaped oscillator blip, optionally sliding in pitch.
+  function blip(freq, length, wave, loudness, delay = 0, slideTo = 0) {
+    if (!context || silenced) return;
+    const start = context.currentTime + delay;
+    const voice = context.createOscillator();
+    const envelope = context.createGain();
+    voice.type = wave;
+    voice.frequency.setValueAtTime(freq, start);
+    if (slideTo) {
+      voice.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), start + length);
+    }
+    envelope.gain.setValueAtTime(loudness, start);
+    envelope.gain.exponentialRampToValueAtTime(0.001, start + length);
+    voice.connect(envelope);
+    envelope.connect(bus);
+    voice.start(start);
+    voice.stop(start + length + 0.05);
   }
 
-  // Bass line: A minor groove, 8 steps, one bar looped by a timer.
-  const BASS = [55, 0, 55, 0, 65.41, 0, 49, 0, 55, 0, 55, 0, 82.41, 0, 73.42, 0];
-  function musicTick() {
-    if (!ctx || muted) return;
-    const note = BASS[step % BASS.length];
-    if (note) tone(note, 0.22, 'triangle', 0.5);
-    if (step % 4 === 0) tone(220, 0.5, 'sine', 0.08);
-    if (step % 2 === 1) tone(6000, 0.03, 'square', 0.02);
-    step += 1;
+  // Bass groove in D minor, sixteen steps, looped by a timer.
+  const BASSLINE = [73.42, 0, 73.42, 0, 87.31, 0, 65.41, 0, 73.42, 0, 73.42, 0, 110, 0, 98, 0];
+  function grooveStep() {
+    if (!context || silenced) return;
+    const note = BASSLINE[beat % BASSLINE.length];
+    if (note) blip(note, 0.22, 'triangle', 0.5);
+    if (beat % 4 === 0) blip(293.66, 0.5, 'sine', 0.08);
+    if (beat % 2 === 1) blip(6000, 0.03, 'square', 0.02);
+    beat += 1;
   }
 
   return {
     unlock() {
-      if (!ensure()) return;
-      if (ctx.state === 'suspended') ctx.resume();
-      if (!musicTimer) musicTimer = window.setInterval(musicTick, 140);
+      if (!buildGraph()) return;
+      if (context.state === 'suspended') context.resume();
+      if (!grooveTimer) grooveTimer = window.setInterval(grooveStep, 140);
     },
-    setEngine(speed01, on) {
-      if (!ctx) return;
-      engineOsc.frequency.value = 50 + speed01 * 140;
-      engineGain.gain.value = on && !muted ? 0.05 + speed01 * 0.05 : 0;
+    setEngine(speed01, running) {
+      if (!context) return;
+      engineVoice.frequency.value = 50 + speed01 * 140;
+      engineLevel.gain.value = running && !silenced ? 0.05 + speed01 * 0.05 : 0;
     },
-    siren() { tone(700, 0.4, 'sine', 0.12, 0, 950); tone(950, 0.4, 'sine', 0.12, 0.4, 700); },
-    punch() { tone(120, 0.12, 'square', 0.25, 0, 50); },
-    cash() { tone(880, 0.12, 'sine', 0.2); tone(1318, 0.25, 'sine', 0.2, 0.1); },
-    horn() { tone(330, 0.35, 'square', 0.12); tone(415, 0.35, 'square', 0.1); },
-    crash() { tone(90, 0.3, 'sawtooth', 0.3, 0, 40); },
-    click() { tone(660, 0.06, 'sine', 0.15); },
-    busted() { tone(440, 0.5, 'sawtooth', 0.2, 0, 110); },
+    siren() {
+      blip(700, 0.4, 'sine', 0.12, 0, 950);
+      blip(950, 0.4, 'sine', 0.12, 0.4, 700);
+    },
+    punch() {
+      blip(120, 0.12, 'square', 0.25, 0, 50);
+    },
+    cash() {
+      blip(880, 0.12, 'sine', 0.2);
+      blip(1318, 0.25, 'sine', 0.2, 0.1);
+    },
+    horn() {
+      blip(330, 0.35, 'square', 0.12);
+      blip(415, 0.35, 'square', 0.1);
+    },
+    crash() {
+      blip(90, 0.3, 'sawtooth', 0.3, 0, 40);
+    },
+    click() {
+      blip(660, 0.06, 'sine', 0.15);
+    },
+    busted() {
+      blip(440, 0.5, 'sawtooth', 0.2, 0, 110);
+    },
     toggleMute() {
-      muted = !muted;
-      if (master) master.gain.value = muted ? 0 : 0.5;
-      return muted;
+      silenced = !silenced;
+      if (bus) bus.gain.value = silenced ? 0 : 0.5;
+      return silenced;
     },
-    isMuted() { return muted; },
+    isMuted() {
+      return silenced;
+    },
   };
 }

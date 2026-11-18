@@ -1,128 +1,146 @@
-// SOLMAR HEAT — police: the wanted system. Stars rise with crimes, police
-// cars spawn at the city edge and chase, ram and try to bust the player.
-// Out of sight long enough and the heat fades; busted means game over.
+// SOLMAR HEAT — police: the wanted system. Crimes raise stars, patrol
+// cars spawn out on the roads and chase, ram and try to bust Rico. Stay
+// out of sight long enough and the heat fades one star at a time; get
+// caught with no health left and the run ends on the BUSTED screen.
 import { THREE } from './three.js';
 import { POLICE } from './config.js';
 import { resolveCollisions } from './city.js';
 import { createCar } from './vehicles.js';
 
-function nearestRoadLine(lines, v) {
-  let best = lines[0];
-  for (const l of lines) if (Math.abs(l - v) < Math.abs(best - v)) best = l;
-  return best;
+function closestLine(lines, value) {
+  let nearest = lines[0];
+  for (const line of lines) {
+    if (Math.abs(line - value) < Math.abs(nearest - value)) nearest = line;
+  }
+  return nearest;
+}
+
+// Wrap an angle into (-PI, PI] so steering always takes the short way.
+function wrapAngle(angle) {
+  let wrapped = angle;
+  while (wrapped > Math.PI) wrapped -= Math.PI * 2;
+  while (wrapped < -Math.PI) wrapped += Math.PI * 2;
+  return wrapped;
 }
 
 export function createPolice(scene, rng, city) {
   const cars = [];
   let wanted = 0;
-  let decayTimer = 0;
-  let sirenTimer = 0;
+  let coolTimer = 0;
+  let wailTimer = 0;
   let spawnTimer = 0;
 
-  function desiredCount() {
+  function patrolsWanted() {
     return Math.min(POLICE.maxCars, Math.ceil(wanted / 1.2));
   }
 
-  function spawnOne(near) {
-    // Spawn on a road, not inside a building: pick a point at spawn
-    // distance, then snap its nearer axis onto a road line and push it out
-    // of any building it still overlaps. (Before this fix the spawn point
-    // was a raw circle and police cars drove straight through buildings.)
-    const angle = rng.range(0, Math.PI * 2);
-    let x = near.x + Math.sin(angle) * POLICE.spawnDistance;
-    let z = near.z + Math.cos(angle) * POLICE.spawnDistance;
-    const snapX = Math.abs(nearestRoadLine(city.roadLines, x) - x);
-    const snapZ = Math.abs(nearestRoadLine(city.roadLines, z) - z);
-    if (snapX <= snapZ) x = nearestRoadLine(city.roadLines, x);
-    else z = nearestRoadLine(city.roadLines, z);
-    const pos = new THREE.Vector3(x, 0, z);
-    resolveCollisions(city.colliders, city.half, pos, 2);
-    const heading = Math.atan2(near.x - pos.x, near.z - pos.z);
-    const car = createCar(scene, pos.x, pos.z, heading, 0x1a1a22, true);
-    cars.push(car);
-    return car;
+  function launchOne(near) {
+    // Spawn on a road, never inside a building: take a point at spawn
+    // distance, snap its nearer axis onto a road line, then push whatever
+    // is left out of any wall it still overlaps.
+    const bearing = rng.range(0, Math.PI * 2);
+    let x = near.x + Math.sin(bearing) * POLICE.spawnDistance;
+    let z = near.z + Math.cos(bearing) * POLICE.spawnDistance;
+    const snapX = Math.abs(closestLine(city.roadLines, x) - x);
+    const snapZ = Math.abs(closestLine(city.roadLines, z) - z);
+    if (snapX <= snapZ) x = closestLine(city.roadLines, x);
+    else z = closestLine(city.roadLines, z);
+    const spot = new THREE.Vector3(x, 0, z);
+    resolveCollisions(city.colliders, city.half, spot, 2);
+    const heading = Math.atan2(near.x - spot.x, near.z - spot.z);
+    const patrol = createCar(scene, spot.x, spot.z, heading, 0x1a1a22, true);
+    cars.push(patrol);
+    return patrol;
+  }
+
+  function chaseCar(car, dt, target) {
+    const dx = target.x - car.pos.x;
+    const dz = target.z - car.pos.z;
+    const gap = Math.hypot(dx, dz);
+    const aim = Math.atan2(dx, dz);
+    const error = wrapAngle(aim - car.heading);
+    car.steer = Math.max(-1, Math.min(1, error * 1.4));
+    car.speed = Math.min(car.speed + 18 * dt, POLICE.chaseSpeed);
+    car.heading += car.steer * 1.9 * dt * Math.min(1, Math.abs(car.speed) / 6);
+    car.pos.x += Math.sin(car.heading) * car.speed * dt;
+    car.pos.z += Math.cos(car.heading) * car.speed * dt;
+    resolveCollisions(city.colliders, city.half, car.pos, 1.6);
+    car.group.position.copy(car.pos);
+    car.group.rotation.y = car.heading;
+    return gap;
   }
 
   return {
     cars,
-    get wanted() { return wanted; },
+    get wanted() {
+      return wanted;
+    },
     addWanted(n) {
       wanted = Math.max(0, Math.min(5, wanted + n));
-      decayTimer = 0;
+      coolTimer = 0;
     },
-    setWanted(n) { wanted = Math.max(0, Math.min(5, n)); decayTimer = 0; },
+    setWanted(n) {
+      wanted = Math.max(0, Math.min(5, n));
+      coolTimer = 0;
+    },
     clear() {
       wanted = 0;
-      for (const c of cars) c.remove();
+      for (const car of cars) car.remove();
       cars.length = 0;
     },
     update(dt, playerPos, inCar, onCrime) {
-      // Spawn up to the wanted level, staggered so the chase builds.
+      // Stagger the spawns so the chase builds instead of arriving at once.
       spawnTimer -= dt;
-      if (wanted > 0 && cars.length < desiredCount() && spawnTimer <= 0) {
-        spawnOne(playerPos);
+      if (wanted > 0 && cars.length < patrolsWanted() && spawnTimer <= 0) {
+        launchOne(playerPos);
         spawnTimer = 2.2;
       }
-      // Siren wail every few seconds while wanted.
-      sirenTimer -= dt;
-      if (wanted > 0 && sirenTimer <= 0) {
-        sirenTimer = 2.6;
+      // A siren wail every few seconds while the heat is on.
+      wailTimer -= dt;
+      if (wanted > 0 && wailTimer <= 0) {
+        wailTimer = 2.6;
         onCrime('siren');
       }
-      // Chase: steer toward the player, ram on contact. Police cars obey
-      // the same building collision as every other car, so a chase can be
-      // broken by cutting through a block they must drive around.
+      const flashingRed = Math.floor(performance.now() / 280) % 2 === 0;
       let nearest = Infinity;
-      let flashOn = Math.floor(performance.now() / 280) % 2 === 0;
       for (const car of cars) {
-        const dx = playerPos.x - car.pos.x;
-        const dz = playerPos.z - car.pos.z;
-        const dist = Math.hypot(dx, dz);
-        nearest = Math.min(nearest, dist);
-        const wantHeading = Math.atan2(dx, dz);
-        let diff = wantHeading - car.heading;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        car.steer = Math.max(-1, Math.min(1, diff * 1.4));
-        car.speed = Math.min(car.speed + 18 * dt, POLICE.chaseSpeed);
-        car.heading += car.steer * 1.9 * dt * Math.min(1, Math.abs(car.speed) / 6);
-        car.pos.x += Math.sin(car.heading) * car.speed * dt;
-        car.pos.z += Math.cos(car.heading) * car.speed * dt;
-        resolveCollisions(city.colliders, city.half, car.pos, 1.6);
-        car.group.position.copy(car.pos);
-        car.group.rotation.y = car.heading;
-        if (car.lightBar) car.lightBar.material.color.setHex(flashOn ? 0xff2222 : 0x2244ff);
-        if (dist < 3.4) {
-          onCrime('ram', car);
+        const gap = chaseCar(car, dt, playerPos);
+        nearest = Math.min(nearest, gap);
+        if (car.lightBar) {
+          car.lightBar.material.color.setHex(flashingRed ? 0xff2222 : 0x2244ff);
         }
+        if (gap < 3.4) onCrime('ram', car);
       }
-      // Wanted decays only when no police car is close.
+      // Stars fade only while no patrol car is anywhere near.
       if (wanted > 0) {
         if (nearest > 45) {
-          decayTimer += dt;
-          if (decayTimer > POLICE.decaySeconds) {
+          coolTimer += dt;
+          if (coolTimer > POLICE.decaySeconds) {
             wanted -= 1;
-            decayTimer = 0;
+            coolTimer = 0;
           }
         } else {
-          decayTimer = 0;
+          coolTimer = 0;
         }
       }
-      // Drop police cars that fell far behind when the heat is gone.
+      // Heat gone: the patrol cars peel off and disappear.
       if (wanted === 0 && cars.length > 0) {
-        for (const c of cars) c.remove();
+        for (const car of cars) car.remove();
         cars.length = 0;
       }
       return { nearestPolice: nearest };
     },
     nearestCar(playerPos) {
-      let best = null;
-      let bestD = Infinity;
+      let closest = null;
+      let closestD = Infinity;
       for (const car of cars) {
-        const d = Math.hypot(car.pos.x - playerPos.x, car.pos.z - playerPos.z);
-        if (d < bestD) { bestD = d; best = car; }
+        const gap = Math.hypot(car.pos.x - playerPos.x, car.pos.z - playerPos.z);
+        if (gap < closestD) {
+          closestD = gap;
+          closest = car;
+        }
       }
-      return { car: best, dist: bestD };
+      return { car: closest, dist: closestD };
     },
   };
 }

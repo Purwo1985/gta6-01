@@ -1,41 +1,42 @@
-// SOLMAR HEAT — combat: the punch. Short range, a cooldown, knockback, and
-// the crime it causes: hitting a pedestrian or a cop raises the wanted level.
-// Car rams are handled by the police and vehicle code, not here.
+// SOLMAR HEAT — combat: Rico's fists, and what they cost him. A punch is
+// short range with a cooldown, it knocks a pedestrian sprawling, and it
+// is always a crime — the street sees it, and the wanted level answers.
+// Car rams live with the police and vehicle code instead, not here.
 import { PLAYER } from './config.js';
 import { resolveCollisions } from './city.js';
+
+function forwardOf(heading) {
+  return { x: Math.sin(heading), z: Math.cos(heading) };
+}
 
 export function resolvePunch(player, traffic, police, audio, onCrime, city) {
   if (!player.punch()) return;
   audio.punch();
-  const fx = Math.sin(player.heading);
-  const fz = Math.cos(player.heading);
-  const hx = player.pos.x + fx * 1.4;
-  const hz = player.pos.z + fz * 1.4;
-  const ped = traffic.nearestPed(hx, hz, PLAYER.punchRange);
-  if (ped) {
-    // Knock the pedestrian down the street and remove them from the crowd.
-    // The knockback is resolved against buildings so a punch never shoves
-    // someone through a wall and out of the world.
-    ped.pos.x += fx * PLAYER.punchKnockback;
-    ped.pos.z += fz * PLAYER.punchKnockback;
-    if (city) resolveCollisions(city.colliders, city.half, ped.pos, 0.55);
-    ped.panic = 3;
+  const facing = forwardOf(player.heading);
+  const fistX = player.pos.x + facing.x * 1.4;
+  const fistZ = player.pos.z + facing.z * 1.4;
+  const victim = traffic.nearestPed(fistX, fistZ, PLAYER.punchRange);
+  if (victim) {
+    // Shove the pedestrian down the street, then bounce them out of any
+    // wall the shove would have put them through.
+    victim.pos.x += facing.x * PLAYER.punchKnockback;
+    victim.pos.z += facing.z * PLAYER.punchKnockback;
+    if (city) resolveCollisions(city.colliders, city.half, victim.pos, 0.55);
+    victim.panic = 3;
     onCrime('assault');
     return;
   }
   const { car, dist } = police.nearestCar(player.pos);
-  if (car && dist < PLAYER.punchRange + 1.5) {
-    car.health -= PLAYER.punchDamage;
-    onCrime('assault');
-    if (car.health <= 0) {
-      const idx = police.cars.indexOf(car);
-      if (idx >= 0) police.cars.splice(idx, 1);
-      car.remove();
-    }
-  }
+  if (!car || dist >= PLAYER.punchRange + 1.5) return;
+  car.health -= PLAYER.punchDamage;
+  onCrime('assault');
+  if (car.health > 0) return;
+  const slot = police.cars.indexOf(car);
+  if (slot >= 0) police.cars.splice(slot, 1);
+  car.remove();
 }
 
-// Damage the player; returns true when the player is busted (health gone).
+// Hurt Rico by `amount`; true when his health is gone and he is busted.
 export function damagePlayer(player, amount) {
   player.health = Math.max(0, player.health - amount);
   return player.health <= 0;

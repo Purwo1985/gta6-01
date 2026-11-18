@@ -1,55 +1,64 @@
-// SOLMAR HEAT — shots: the four screenshot scenes. Each one stages the real
-// game (real world, real systems, a short autopilot drive) and then paints
-// it, so every screenshot is a frame the game itself produced.
+// SOLMAR HEAT — shots: the four screenshot scenes. Each one stages the
+// real game — the real world, the real systems, a short autopilot drive —
+// and then paints it, so every screenshot is a frame the game itself
+// produced, never a mock-up. ?shot=chase|walk|mission|start picks one.
 import { STEP } from './config.js';
 
-function driveForward(game, seconds) {
-  const steps = Math.floor(seconds / STEP);
-  for (let i = 0; i < steps; i += 1) {
+function autopilotDrive(game, seconds) {
+  const ticks = Math.floor(seconds / STEP);
+  for (let i = 0; i < ticks; i += 1) {
     game.debugDrive({ forward: true, steer: 0 });
     game.step(STEP);
   }
 }
 
-function walkForward(game, seconds) {
-  const steps = Math.floor(seconds / STEP);
-  for (let i = 0; i < steps; i += 1) {
+function autopilotWalk(game, seconds) {
+  const ticks = Math.floor(seconds / STEP);
+  for (let i = 0; i < ticks; i += 1) {
     game.debugWalk({ forward: true });
     game.step(STEP);
   }
 }
 
-// Stage `name` (chase | walk | mission | start) on a fresh game and return
-// the screen the HUD should show over it.
-export function stageShot(name, game) {
-  game.resetWorld();
-  if (name === 'chase') {
+const STAGES = {
+  chase(game) {
     game.debugPlaceCar(0, 60, 0);
     game.debugSetWanted(3);
     game.debugCamera('chase');
-    driveForward(game, 2.2);
-    // Police close in from ahead only after the drive, so they are in frame.
+    autopilotDrive(game, 2.2);
+    // Patrol cars close in from ahead only after the drive, so the
+    // chase is already in frame when the picture is taken.
     game.debugSpawnPolice(2);
-    driveForward(game, 0.6);
+    autopilotDrive(game, 0.6);
     return 'play';
-  }
-  if (name === 'walk') {
+  },
+  walk(game) {
     game.debugPlacePlayer(12, 24);
     game.debugGatherPeds(12, 24, 12);
     game.debugCamera('walk');
-    walkForward(game, 1.2);
+    autopilotWalk(game, 1.2);
     return 'play';
-  }
-  if (name === 'mission') {
+  },
+  mission(game) {
     game.debugStartMission(0);
-    // On the beachfront road, heading for the docks beacon straight ahead.
+    // On the beachfront road, driving for the docks beacon dead ahead.
     game.debugPlaceCar(-120, 140, 0);
     game.debugCamera('chase');
-    driveForward(game, 1.4);
+    autopilotDrive(game, 1.4);
     return 'play';
-  }
-  // start: an aerial view of the plaza at sunset, title screen on top.
-  game.debugCamera('aerial');
-  game.step(STEP);
-  return 'start';
+  },
+  start(game) {
+    // An aerial look at the plaza at sunset, title screen on top.
+    game.debugCamera('aerial');
+    game.step(STEP);
+    return 'start';
+  },
+};
+
+// Stage `name` (chase | walk | mission | start) on a fresh game and hand
+// back the screen the HUD should show over the finished frame.
+export function stageShot(name, game) {
+  game.resetWorld();
+  const stage = STAGES[name] ?? STAGES.start;
+  return stage(game);
 }

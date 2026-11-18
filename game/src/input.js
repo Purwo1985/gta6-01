@@ -1,5 +1,8 @@
-// SOLMAR HEAT — input: keyboard state plus mouse-drag camera orbit.
-// Keys are read by name so the HUD can show the same bindings as the help.
+// SOLMAR HEAT — input: the keyboard and the mouse-drag orbit, read by
+// every system through one small surface. Held keys live in a set, taps
+// (one physical press) live in a second set the loop drains each frame,
+// and drag deltas accumulate until something consumes them — so a frame
+// never sees the same tap twice and never misses a flick of the mouse.
 export const ACTION = {
   forward: 'KeyW',
   back: 'KeyS',
@@ -15,54 +18,85 @@ export const ACTION = {
   mute: 'KeyN',
 };
 
+// Arrow keys drive too, for players who never learned WASD.
+const ARROW_ALIAS = {
+  ArrowUp: 'KeyW',
+  ArrowDown: 'KeyS',
+  ArrowLeft: 'KeyA',
+  ArrowRight: 'KeyD',
+};
+
+function resolveCode(event) {
+  return ARROW_ALIAS[event.code] ?? event.code;
+}
+
 export function createInput(canvas) {
-  const keys = new Set();
-  let dragX = 0;
-  let dragY = 0;
-  let dragging = false;
-  let lastX = 0;
-  let lastY = 0;
-  const pressed = new Set();
+  const held = new Set();
+  const tapped = new Set();
+  const drag = { x: 0, y: 0 };
+  let orbiting = false;
+  let pointerX = 0;
+  let pointerY = 0;
 
-  function onKeyDown(event) {
+  function press(event) {
     if (event.repeat) return;
-    keys.add(event.code);
-    pressed.add(event.code);
+    const code = resolveCode(event);
+    held.add(code);
+    tapped.add(code);
   }
-  function onKeyUp(event) { keys.delete(event.code); }
-  function onMouseDown(event) {
-    dragging = true;
-    lastX = event.clientX;
-    lastY = event.clientY;
-  }
-  function onMouseMove(event) {
-    if (!dragging) return;
-    dragX += event.clientX - lastX;
-    dragY += event.clientY - lastY;
-    lastX = event.clientX;
-    lastY = event.clientY;
-  }
-  function onMouseUp() { dragging = false; }
 
-  window.addEventListener('keydown', onKeyDown);
-  window.addEventListener('keyup', onKeyUp);
-  // Losing the window (alt-tab) used to leave keys stuck down, so Rico
-  // kept walking or driving with no one at the keyboard.
-  window.addEventListener('blur', () => { keys.clear(); pressed.clear(); });
-  canvas.addEventListener('mousedown', onMouseDown);
-  window.addEventListener('mousemove', onMouseMove);
-  window.addEventListener('mouseup', onMouseUp);
+  function release(event) {
+    held.delete(resolveCode(event));
+  }
+
+  function clearAll() {
+    held.clear();
+    tapped.clear();
+  }
+
+  function grab(event) {
+    orbiting = true;
+    pointerX = event.clientX;
+    pointerY = event.clientY;
+  }
+
+  function orbit(event) {
+    if (!orbiting) return;
+    drag.x += event.clientX - pointerX;
+    drag.y += event.clientY - pointerY;
+    pointerX = event.clientX;
+    pointerY = event.clientY;
+  }
+
+  function letGo() {
+    orbiting = false;
+  }
+
+  window.addEventListener('keydown', press);
+  window.addEventListener('keyup', release);
+  // Alt-tab used to strand keys in the held set, so Rico kept walking
+  // or driving long after the player had left the keyboard.
+  window.addEventListener('blur', clearAll);
+  canvas.addEventListener('mousedown', grab);
+  window.addEventListener('mousemove', orbit);
+  window.addEventListener('mouseup', letGo);
 
   return {
-    isDown(code) { return keys.has(code); },
-    // True once per physical press; consumed by the game loop each frame.
-    wasPressed(code) { return pressed.has(code); },
-    consumeDrag() {
-      const out = { x: dragX, y: dragY };
-      dragX = 0;
-      dragY = 0;
-      return out;
+    isDown(code) {
+      return held.has(code);
     },
-    endFrame() { pressed.clear(); },
+    // True once per physical press; the loop drains it every frame.
+    wasPressed(code) {
+      return tapped.has(code);
+    },
+    consumeDrag() {
+      const delta = { x: drag.x, y: drag.y };
+      drag.x = 0;
+      drag.y = 0;
+      return delta;
+    },
+    endFrame() {
+      tapped.clear();
+    },
   };
 }

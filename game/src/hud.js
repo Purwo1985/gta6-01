@@ -1,108 +1,135 @@
-// SOLMAR HEAT — hud: every on-screen element. Wanted stars, cash, health,
-// speed, the mission objective, dialogue subtitles, toast messages and a
-// live 2D minimap (roads, buildings, beacon, cars, police, player arrow).
+// SOLMAR HEAT — hud: everything on screen. Wanted stars, cash, health,
+// speed, the job objective, dialogue subtitles, toast messages and a
+// live 2D minimap — roads, buildings, the beacon, traffic, police and
+// Rico's own arrow, all redrawn every frame from the world state.
 import { CITY } from './config.js';
 
-export function createHud(city) {
-  const el = (id) => document.getElementById(id);
-  const starsEl = el('wanted');
-  const cashEl = el('cash');
-  const healthEl = el('health-fill');
-  const speedEl = el('speed');
-  const objectiveEl = el('objective');
-  const dialogEl = el('dialogue');
-  const toastEl = el('toast');
-  const minimap = el('minimap');
-  const mctx = minimap.getContext('2d');
-  const clockEl = el('clock');
-  let toastTimer = 0;
-  let gameMinutes = 17 * 60 + 24; // Sunset: 17:24, ticking slowly.
+const MAP_SIZE = 168;
 
-  function drawMinimap(playerPos, heading, cars, policeCars, beaconPos, targetPos) {
-    const S = 168;
-    const half = CITY.half + 60;
-    const toMap = (x, z) => [((x + half) / (half * 2)) * S, ((z + half) / (half * 2)) * S];
-    mctx.clearRect(0, 0, S, S);
-    mctx.fillStyle = 'rgba(20,28,40,0.85)';
-    mctx.fillRect(0, 0, S, S);
-    // Sea strip at the bottom.
-    mctx.fillStyle = '#2a7fa8';
-    const [, seaY] = toMap(0, CITY.half);
-    mctx.fillRect(0, seaY, S, S - seaY);
-    // Roads.
-    mctx.strokeStyle = '#8a8a9a';
-    mctx.lineWidth = 3;
+export function createHud(city) {
+  const grab = (id) => document.getElementById(id);
+  const starsBox = grab('wanted');
+  const cashBox = grab('cash');
+  const healthBar = grab('health-fill');
+  const speedBox = grab('speed');
+  const objectiveBox = grab('objective');
+  const dialogueBox = grab('dialogue');
+  const toastBox = grab('toast');
+  const clockBox = grab('clock');
+  const mapCanvas = grab('minimap');
+  const map = mapCanvas.getContext('2d');
+  let toastLeft = 0;
+  let minutes = 17 * 60 + 24; // Sunset: 17:24, ticking slowly on.
+
+  function project(x, z) {
+    const span = CITY.half + 60;
+    return [
+      ((x + span) / (span * 2)) * MAP_SIZE,
+      ((z + span) / (span * 2)) * MAP_SIZE,
+    ];
+  }
+
+  function paintMinimap(playerPos, heading, cars, policeCars, targetPos) {
+    const S = MAP_SIZE;
+    const span = CITY.half + 60;
+    map.clearRect(0, 0, S, S);
+    map.fillStyle = 'rgba(20,28,40,0.85)';
+    map.fillRect(0, 0, S, S);
+    // Sea along the southern edge.
+    map.fillStyle = '#2a7fa8';
+    const [, seaTop] = project(0, CITY.half);
+    map.fillRect(0, seaTop, S, S - seaTop);
+    // Road grid.
+    map.strokeStyle = '#8a8a9a';
+    map.lineWidth = 3;
     for (const line of city.roadLines) {
-      const [x] = toMap(line, 0);
-      mctx.beginPath(); mctx.moveTo(x, 0); mctx.lineTo(x, S); mctx.stroke();
-      const [, z] = toMap(0, line);
-      mctx.beginPath(); mctx.moveTo(0, z); mctx.lineTo(S, z); mctx.stroke();
+      const [vx] = project(line, 0);
+      map.beginPath();
+      map.moveTo(vx, 0);
+      map.lineTo(vx, S);
+      map.stroke();
+      const [, hz] = project(0, line);
+      map.beginPath();
+      map.moveTo(0, hz);
+      map.lineTo(S, hz);
+      map.stroke();
     }
     // Buildings as warm blocks.
-    mctx.fillStyle = '#c9a86a';
-    for (const c of city.colliders) {
-      const [x1, z1] = toMap(c.minX, c.minZ);
-      const [x2, z2] = toMap(c.maxX, c.maxZ);
-      mctx.fillRect(x1, z1, Math.max(1, x2 - x1), Math.max(1, z2 - z1));
+    map.fillStyle = '#c9a86a';
+    for (const block of city.colliders) {
+      const [x1, z1] = project(block.minX, block.minZ);
+      const [x2, z2] = project(block.maxX, block.maxZ);
+      map.fillRect(x1, z1, Math.max(1, x2 - x1), Math.max(1, z2 - z1));
     }
-    // Mission target.
+    // The job target: a gold ring with a halo.
     if (targetPos) {
-      const [x, z] = toMap(targetPos.x, targetPos.z);
-      mctx.fillStyle = '#ffd21f';
-      mctx.beginPath(); mctx.arc(x, z, 6, 0, Math.PI * 2); mctx.fill();
-      mctx.strokeStyle = '#ffd21f';
-      mctx.beginPath(); mctx.arc(x, z, 10, 0, Math.PI * 2); mctx.stroke();
+      const [tx, tz] = project(targetPos.x, targetPos.z);
+      map.fillStyle = '#ffd21f';
+      map.beginPath();
+      map.arc(tx, tz, 6, 0, Math.PI * 2);
+      map.fill();
+      map.strokeStyle = '#ffd21f';
+      map.beginPath();
+      map.arc(tx, tz, 10, 0, Math.PI * 2);
+      map.stroke();
     }
-    // Traffic cars (white), police (blue-red), player (green arrow).
-    mctx.fillStyle = '#ffffff';
-    for (const c of cars) {
-      const [x, z] = toMap(c.pos.x, c.pos.z);
-      mctx.fillRect(x - 1.5, z - 1.5, 3, 3);
+    // Traffic in white, police in blue, Rico as a green arrow.
+    map.fillStyle = '#ffffff';
+    for (const car of cars) {
+      const [cx, cz] = project(car.pos.x, car.pos.z);
+      map.fillRect(cx - 1.5, cz - 1.5, 3, 3);
     }
-    mctx.fillStyle = '#4a90ff';
-    for (const c of policeCars) {
-      const [x, z] = toMap(c.pos.x, c.pos.z);
-      mctx.beginPath(); mctx.arc(x, z, 3.5, 0, Math.PI * 2); mctx.fill();
+    map.fillStyle = '#4a90ff';
+    for (const patrol of policeCars) {
+      const [px, pz] = project(patrol.pos.x, patrol.pos.z);
+      map.beginPath();
+      map.arc(px, pz, 3.5, 0, Math.PI * 2);
+      map.fill();
     }
-    const [px, pz] = toMap(playerPos.x, playerPos.z);
-    mctx.save();
-    mctx.translate(px, pz);
-    // The arrow is drawn pointing up (0,-1); rotating by PI - heading
-    // points it along the player's forward vector (sin h, cos h) on the
-    // map (x right, z down). The old `heading + PI` mirrored it left-right.
-    mctx.rotate(Math.PI - heading);
-    mctx.fillStyle = '#37e07a';
-    mctx.beginPath();
-    mctx.moveTo(0, -7); mctx.lineTo(5, 6); mctx.lineTo(-5, 6); mctx.closePath();
-    mctx.fill();
-    mctx.restore();
+    const [rx, rz] = project(playerPos.x, playerPos.z);
+    map.save();
+    map.translate(rx, rz);
+    // The arrow is drawn pointing up; rotating by PI minus the heading
+    // aims it along Rico's forward vector (sin h, cos h) on a map where
+    // x runs right and z runs down.
+    map.rotate(Math.PI - heading);
+    map.fillStyle = '#37e07a';
+    map.beginPath();
+    map.moveTo(0, -7);
+    map.lineTo(5, 6);
+    map.lineTo(-5, 6);
+    map.closePath();
+    map.fill();
+    map.restore();
   }
 
   return {
     update(dt, state) {
-      gameMinutes += dt * 0.6;
-      const hh = Math.floor(gameMinutes / 60) % 24;
-      const mm = Math.floor(gameMinutes % 60);
-      clockEl.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}  PORTO SOLMAR`;
-      starsEl.textContent = '★'.repeat(state.wanted) + '☆'.repeat(Math.max(0, 5 - state.wanted));
-      starsEl.style.color = state.wanted > 0 ? '#ffd21f' : '#888899';
-      cashEl.textContent = `$${state.cash.toLocaleString('en-US')}`;
-      healthEl.style.width = `${Math.max(0, state.health)}%`;
-      healthEl.style.background = state.health > 50 ? '#37e07a' : state.health > 25 ? '#f2c14e' : '#e83a2e';
-      speedEl.textContent = state.inCar ? `${Math.round(Math.abs(state.speed) * 3.6)} km/h` : '';
-      objectiveEl.textContent = state.objective;
-      dialogEl.textContent = state.dialogue || '';
-      dialogEl.style.display = state.dialogue ? 'block' : 'none';
-      if (toastTimer > 0) {
-        toastTimer -= dt;
-        if (toastTimer <= 0) toastEl.style.display = 'none';
+      minutes += dt * 0.6;
+      const hours = Math.floor(minutes / 60) % 24;
+      const mins = Math.floor(minutes % 60);
+      clockBox.textContent =
+        `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}  PORTO SOLMAR`;
+      starsBox.textContent = '★'.repeat(state.wanted) + '☆'.repeat(Math.max(0, 5 - state.wanted));
+      starsBox.style.color = state.wanted > 0 ? '#ffd21f' : '#888899';
+      cashBox.textContent = `$${state.cash.toLocaleString('en-US')}`;
+      const health = Math.max(0, state.health);
+      healthBar.style.width = `${health}%`;
+      healthBar.style.background = health > 50 ? '#37e07a' : health > 25 ? '#f2c14e' : '#e83a2e';
+      speedBox.textContent = state.inCar ? `${Math.round(Math.abs(state.speed) * 3.6)} km/h` : '';
+      objectiveBox.textContent = state.objective;
+      dialogueBox.textContent = state.dialogue || '';
+      dialogueBox.style.display = state.dialogue ? 'block' : 'none';
+      if (toastLeft > 0) {
+        toastLeft -= dt;
+        if (toastLeft <= 0) toastBox.style.display = 'none';
       }
-      drawMinimap(state.pos, state.heading, state.trafficCars, state.policeCars, state.beaconPos, state.targetPos);
+      paintMinimap(state.pos, state.heading, state.trafficCars, state.policeCars, state.targetPos);
     },
     toast(text, ms = 2600) {
-      toastEl.textContent = text;
-      toastEl.style.display = 'block';
-      toastTimer = ms / 1000;
+      toastBox.textContent = text;
+      toastBox.style.display = 'block';
+      toastLeft = ms / 1000;
     },
     showScreen(name) {
       for (const id of ['screen-start', 'screen-pause', 'screen-over']) {
