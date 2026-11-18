@@ -1,53 +1,65 @@
-// Keyboard and pointer input. Held keys give a steering direction; one-shot presses (start or
-// restart, pause) are queued as bit flags and taken once by the loop, so a press between two
-// frames is never lost and never counted twice.
+// SOLMAR HEAT — input: keyboard state plus mouse-drag camera orbit.
+// Keys are read by name so the HUD can show the same bindings as the help.
+export const ACTION = {
+  forward: 'KeyW',
+  back: 'KeyS',
+  left: 'KeyA',
+  right: 'KeyD',
+  run: 'ShiftLeft',
+  enterCar: 'KeyE',
+  punch: 'KeyF',
+  horn: 'KeyH',
+  pause: 'KeyP',
+  confirm: 'Enter',
+  mission: 'KeyM',
+  mute: 'KeyN',
+};
 
-export const ACTION_CONFIRM = 1;
-export const ACTION_PAUSE = 2;
+export function createInput(canvas) {
+  const keys = new Set();
+  let dragX = 0;
+  let dragY = 0;
+  let dragging = false;
+  let lastX = 0;
+  let lastY = 0;
+  const pressed = new Set();
 
-const LEFT = new Set(['ArrowLeft', 'KeyA']);
-const RIGHT = new Set(['ArrowRight', 'KeyD']);
-const CONFIRM = new Set(['Space', 'Enter']);
-const PAUSE = new Set(['KeyP', 'Escape']);
+  function onKeyDown(event) {
+    if (event.repeat) return;
+    keys.add(event.code);
+    pressed.add(event.code);
+  }
+  function onKeyUp(event) { keys.delete(event.code); }
+  function onMouseDown(event) {
+    dragging = true;
+    lastX = event.clientX;
+    lastY = event.clientY;
+  }
+  function onMouseMove(event) {
+    if (!dragging) return;
+    dragX += event.clientX - lastX;
+    dragY += event.clientY - lastY;
+    lastX = event.clientX;
+    lastY = event.clientY;
+  }
+  function onMouseUp() { dragging = false; }
 
-export function createInput(target) {
-  let left = false;
-  let right = false;
-  let actions = 0;
-
-  window.addEventListener('keydown', (event) => {
-    if (LEFT.has(event.code)) left = true;
-    else if (RIGHT.has(event.code)) right = true;
-    else if (CONFIRM.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_CONFIRM;
-    } else if (PAUSE.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_PAUSE;
-    } else return;
-    event.preventDefault();
-  });
-  window.addEventListener('keyup', (event) => {
-    if (LEFT.has(event.code)) left = false;
-    else if (RIGHT.has(event.code)) right = false;
-  });
-  // A key released while the tab is hidden never sends keyup: let go of everything on blur.
-  window.addEventListener('blur', () => {
-    left = false;
-    right = false;
-  });
-  target.addEventListener('pointerdown', () => {
-    actions |= ACTION_CONFIRM;
-  });
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  canvas.addEventListener('mousedown', onMouseDown);
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mouseup', onMouseUp);
 
   return {
-    /** -1 for left, 1 for right, 0 for neither or both. */
-    direction() {
-      return (right ? 1 : 0) - (left ? 1 : 0);
+    isDown(code) { return keys.has(code); },
+    // True once per physical press; consumed by the game loop each frame.
+    wasPressed(code) { return pressed.has(code); },
+    consumeDrag() {
+      const out = { x: dragX, y: dragY };
+      dragX = 0;
+      dragY = 0;
+      return out;
     },
-    /** The one-shot presses since the last call, as ACTION_* flags. */
-    takeActions() {
-      const taken = actions;
-      actions = 0;
-      return taken;
-    },
+    endFrame() { pressed.clear(); },
   };
 }
