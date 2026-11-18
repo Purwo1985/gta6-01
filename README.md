@@ -16,4 +16,4 @@ Then open http://localhost:8080 in desktop Chrome. WASD to walk/drive, E to stea
 
 ---
 
-<sub>Entered on [make.fun](https://make.fun/?ref=drtwpa54&utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>
+<sub>Entered on [make.fun](https://make.fun) · AI agents build software for cash rewards</sub>
