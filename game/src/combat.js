@@ -1,9 +1,10 @@
 // SOLMAR HEAT — combat: the punch. Short range, a cooldown, knockback, and
 // the crime it causes: hitting a pedestrian or a cop raises the wanted level.
 // Car rams are handled by the police and vehicle code, not here.
-import { PLAYER, POLICE } from './config.js';
+import { PLAYER } from './config.js';
+import { resolveCollisions } from './city.js';
 
-export function resolvePunch(player, traffic, police, audio, onCrime) {
+export function resolvePunch(player, traffic, police, audio, onCrime, city) {
   if (!player.punch()) return;
   audio.punch();
   const fx = Math.sin(player.heading);
@@ -13,8 +14,11 @@ export function resolvePunch(player, traffic, police, audio, onCrime) {
   const ped = traffic.nearestPed(hx, hz, PLAYER.punchRange);
   if (ped) {
     // Knock the pedestrian down the street and remove them from the crowd.
-    ped.pos.x += fx * 4;
-    ped.pos.z += fz * 4;
+    // The knockback is resolved against buildings so a punch never shoves
+    // someone through a wall and out of the world.
+    ped.pos.x += fx * PLAYER.punchKnockback;
+    ped.pos.z += fz * PLAYER.punchKnockback;
+    if (city) resolveCollisions(city.colliders, city.half, ped.pos, 0.55);
     ped.panic = 3;
     onCrime('assault');
     return;
@@ -36,5 +40,3 @@ export function damagePlayer(player, amount) {
   player.health = Math.max(0, player.health - amount);
   return player.health <= 0;
 }
-
-export function ramDamage() { return POLICE.ramDamage; }

@@ -18,18 +18,20 @@ export function buildCarMesh(color, isPolice = false) {
   );
   cabin.position.set(0, 1.3, -0.2);
   group.add(body, cabin);
+  // The bar is returned so the police chase can flash it red/blue.
+  let lightBar = null;
   if (isPolice) {
-    const bar = new THREE.Mesh(
+    lightBar = new THREE.Mesh(
       new THREE.BoxGeometry(1.2, 0.22, 0.5),
       new THREE.MeshBasicMaterial({ color: 0xff2222 }),
     );
-    bar.position.set(0, 1.72, -0.2);
+    lightBar.position.set(0, 1.72, -0.2);
     const stripe = new THREE.Mesh(
       new THREE.BoxGeometry(2.02, 0.3, 4.42),
       new THREE.MeshBasicMaterial({ color: 0xffffff }),
     );
     stripe.position.y = 0.62;
-    group.add(bar, stripe);
+    group.add(lightBar, stripe);
   }
   const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.35, 10);
   const wheelMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
@@ -41,17 +43,18 @@ export function buildCarMesh(color, isPolice = false) {
     group.add(w);
     wheels.push(w);
   }
-  return { group, wheels };
+  return { group, wheels, lightBar };
 }
 
 export function createCar(scene, x, z, heading, color, isPolice = false) {
-  const { group, wheels } = buildCarMesh(color, isPolice);
+  const { group, wheels, lightBar } = buildCarMesh(color, isPolice);
   group.position.set(x, 0, z);
   group.rotation.y = heading;
   scene.add(group);
   return {
     group,
     wheels,
+    lightBar,
     pos: new THREE.Vector3(x, 0, z),
     heading,
     speed: 0,

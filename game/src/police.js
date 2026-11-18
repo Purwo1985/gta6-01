@@ -3,7 +3,14 @@
 // Out of sight long enough and the heat fades; busted means game over.
 import { THREE } from './three.js';
 import { POLICE } from './config.js';
+import { resolveCollisions } from './city.js';
 import { createCar } from './vehicles.js';
+
+function nearestRoadLine(lines, v) {
+  let best = lines[0];
+  for (const l of lines) if (Math.abs(l - v) < Math.abs(best - v)) best = l;
+  return best;
+}
 
 export function createPolice(scene, rng, city) {
   const cars = [];
@@ -17,11 +24,21 @@ export function createPolice(scene, rng, city) {
   }
 
   function spawnOne(near) {
+    // Spawn on a road, not inside a building: pick a point at spawn
+    // distance, then snap its nearer axis onto a road line and push it out
+    // of any building it still overlaps. (Before this fix the spawn point
+    // was a raw circle and police cars drove straight through buildings.)
     const angle = rng.range(0, Math.PI * 2);
-    const x = near.x + Math.sin(angle) * 55;
-    const z = near.z + Math.cos(angle) * 55;
-    const heading = Math.atan2(near.x - x, near.z - z);
-    const car = createCar(scene, x, z, heading, 0x1a1a22, true);
+    let x = near.x + Math.sin(angle) * POLICE.spawnDistance;
+    let z = near.z + Math.cos(angle) * POLICE.spawnDistance;
+    const snapX = Math.abs(nearestRoadLine(city.roadLines, x) - x);
+    const snapZ = Math.abs(nearestRoadLine(city.roadLines, z) - z);
+    if (snapX <= snapZ) x = nearestRoadLine(city.roadLines, x);
+    else z = nearestRoadLine(city.roadLines, z);
+    const pos = new THREE.Vector3(x, 0, z);
+    resolveCollisions(city.colliders, city.half, pos, 2);
+    const heading = Math.atan2(near.x - pos.x, near.z - pos.z);
+    const car = createCar(scene, pos.x, pos.z, heading, 0x1a1a22, true);
     cars.push(car);
     return car;
   }
@@ -52,8 +69,11 @@ export function createPolice(scene, rng, city) {
         sirenTimer = 2.6;
         onCrime('siren');
       }
-      // Chase: steer toward the player, ram on contact.
+      // Chase: steer toward the player, ram on contact. Police cars obey
+      // the same building collision as every other car, so a chase can be
+      // broken by cutting through a block they must drive around.
       let nearest = Infinity;
+      let flashOn = Math.floor(performance.now() / 280) % 2 === 0;
       for (const car of cars) {
         const dx = playerPos.x - car.pos.x;
         const dz = playerPos.z - car.pos.z;
@@ -68,8 +88,10 @@ export function createPolice(scene, rng, city) {
         car.heading += car.steer * 1.9 * dt * Math.min(1, Math.abs(car.speed) / 6);
         car.pos.x += Math.sin(car.heading) * car.speed * dt;
         car.pos.z += Math.cos(car.heading) * car.speed * dt;
+        resolveCollisions(city.colliders, city.half, car.pos, 1.6);
         car.group.position.copy(car.pos);
         car.group.rotation.y = car.heading;
+        if (car.lightBar) car.lightBar.material.color.setHex(flashOn ? 0xff2222 : 0x2244ff);
         if (dist < 3.4) {
           onCrime('ram', car);
         }

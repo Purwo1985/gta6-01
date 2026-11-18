@@ -45,30 +45,38 @@ export function createMissions(scene, city, save) {
   let escapeTimer = 0;
   let passenger = null;
 
-  function targetFor(m) {
+  function targetFor(m, hasPassenger) {
     const L = city.landmarks;
     if (m.kind === 'goto') return L.docks;
     if (m.kind === 'escape') return null;
-    if (m.kind === 'taxi') return L.hotel;
+    // Taxi is two legs: Tio Benny waits at the plaza, and only once he is
+    // in the car does the marker point at the Palms Hotel. (Before this fix
+    // the marker pointed at the hotel from the start while the pickup fired
+    // anywhere, so the job completed without ever going to Tio.)
+    if (m.kind === 'taxi') return hasPassenger ? L.hotel : L.plaza;
     if (m.kind === 'getaway') return L.safehouse;
     if (m.kind === 'heist') return L.bank;
     return L.plaza;
   }
 
+  function moveMarkerTo(target) {
+    beacon.position.set(target.x, 0, target.z);
+    beacon.visible = true;
+    marker.position.set(target.x, 1.2, target.z);
+    marker.visible = true;
+  }
+
   function start(i) {
     index = i;
     const m = MISSIONS[i];
-    const target = targetFor(m);
+    passenger = false;
+    const target = targetFor(m, false);
     active = { def: m, target, done: false };
     lineIndex = 0;
     lineTimer = 0;
     escapeTimer = 0;
-    if (target) {
-      beacon.position.set(target.x, 0, target.z);
-      beacon.visible = true;
-      marker.position.set(target.x, 1.2, target.z);
-      marker.visible = true;
-    } else {
+    if (target) moveMarkerTo(target);
+    else {
       beacon.visible = false;
       marker.visible = false;
     }
@@ -87,7 +95,15 @@ export function createMissions(scene, city, save) {
     start(i = index) { return start(i); },
     // True when the player currently has a passenger to deliver.
     hasPassenger() { return passenger === true; },
-    setPassenger(v) { passenger = v; },
+    setPassenger(v) {
+      passenger = v;
+      // Boarding retargets the taxi leg: the marker swings to the hotel.
+      if (v && active && active.def.kind === 'taxi') {
+        const target = targetFor(active.def, true);
+        active.target = target;
+        moveMarkerTo(target);
+      }
+    },
     complete(saveRef, onEvent) {
       if (!active) return;
       const m = active.def;
@@ -118,7 +134,12 @@ export function createMissions(scene, city, save) {
       if (m.kind === 'goto' || m.kind === 'taxi' || m.kind === 'getaway' || m.kind === 'heist') {
         if (!active.target) return null;
         const d = Math.hypot(playerPos.x - active.target.x, playerPos.z - active.target.z);
-        if (m.kind === 'taxi' && !passenger) return { need: 'pickup', dist: d };
+        // The pickup only counts at the marker, in a car: before this fix
+        // any car anywhere boarded Tio Benny the moment the player drove.
+        if (m.kind === 'taxi' && !passenger) {
+          if (d < 6) return { need: 'pickup', dist: d };
+          return { dist: d };
+        }
         if (d < 6) return { done: true };
         return { dist: d };
       }
@@ -136,7 +157,7 @@ export function createMissions(scene, city, save) {
     objectiveText() {
       if (!active) return 'Free roam — press M for the next job';
       const m = active.def;
-      if (m.kind === 'taxi' && !passenger) return 'Pick up Tio Benny (follow the marker)';
+      if (m.kind === 'taxi' && !passenger) return 'Pick up Tio Benny at Solmar Plaza (follow the marker)';
       return m.brief;
     },
     targetPos() { return active && active.target ? active.target : null; },

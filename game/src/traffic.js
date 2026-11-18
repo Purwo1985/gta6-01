@@ -69,21 +69,23 @@ export function createTraffic(scene, rng, city) {
     car.pos.z += fz * car.speed * dt;
     car.group.position.copy(car.pos);
     car.group.rotation.y = car.heading;
-    const onLine = car.along ? Math.abs(car.pos.z % 60) < 6 || Math.abs(car.pos.z) < 6 : Math.abs(car.pos.x % 60) < 6;
     const nearIntersection = car.along
       ? Math.abs(nearestRoadLine(roadLines, car.pos.z) - car.pos.z) < 3
       : Math.abs(nearestRoadLine(roadLines, car.pos.x) - car.pos.x) < 3;
-    if (nearIntersection && rng.chance(dt * 0.25)) {
+    if (nearIntersection && rng.chance(dt * TRAFFIC.turnChance)) {
       const turn = rng.chance(0.5) ? Math.PI / 2 : -Math.PI / 2;
       car.heading += turn;
       car.along = !car.along;
+      // Snap onto the centre of the road just turned onto, so traffic
+      // stays in its lane instead of drifting across the sidewalk.
+      if (car.along) car.pos.x = nearestRoadLine(roadLines, car.pos.x);
+      else car.pos.z = nearestRoadLine(roadLines, car.pos.z);
     }
     // Wrap around the far edge so traffic never runs out.
     if (car.pos.x > half + 30) car.pos.x = -half - 30;
     if (car.pos.x < -half - 30) car.pos.x = half + 30;
     if (car.pos.z > half + 60) car.pos.z = -half - 30;
     if (car.pos.z < -half - 30) car.pos.z = half + 60;
-    if (onLine) { /* keeps the linter honest: lane snaps happen at turns */ }
   }
 
   return {

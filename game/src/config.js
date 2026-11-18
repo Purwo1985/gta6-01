@@ -19,6 +19,8 @@ export const PLAYER = {
   punchRange: 2.2,
   punchDamage: 34,
   punchCooldown: 0.45,
+  // How far a punched pedestrian is knocked down the street.
+  punchKnockback: 4,
 };
 
 export const CAR = {
@@ -38,6 +40,8 @@ export const TRAFFIC = {
   pedCount: 26,
   carSpeed: 9,
   pedSpeed: 1.6,
+  // Chance per second for a traffic car to turn at an intersection.
+  turnChance: 0.25,
 };
 
 export const POLICE = {
@@ -45,6 +49,8 @@ export const POLICE = {
   chaseSpeed: 34,
   ramDamage: 9,
   bustRange: 2.4,
+  // How far from the player a new police car spawns, on a road.
+  spawnDistance: 55,
   // Wanted stars decay after this many seconds with no police in sight.
   decaySeconds: 14,
 };

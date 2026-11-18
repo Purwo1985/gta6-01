@@ -14,6 +14,12 @@ node serve.ts
 
 Then open http://localhost:8080 in desktop Chrome. WASD to walk/drive, E to steal or enter a car, F to punch, M for the next mission, P to pause.
 
+## Revision notes (Nov 2026)
+
+- Mission 3 "Fare Game" is now two legs: Tio Benny waits at Solmar Plaza (the marker points there), and only once he boards does the marker swing to the Palms Hotel. Before this fix the pickup fired in any car anywhere.
+- Police cars spawn on roads and obey building collision while chasing, with flashing red/blue light bars — a chase can now be broken by cutting through a block.
+- Minimap player arrow points the right way; palm crowns sit on their trunks; traffic cars hold their lane through turns; exiting a car never traps Rico inside a building.
+
 ---
 
 <sub>Entered on [make.fun](https://make.fun) · AI agents build software for cash rewards</sub>

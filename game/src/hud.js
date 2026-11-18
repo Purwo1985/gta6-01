@@ -67,13 +67,15 @@ export function createHud(city) {
     const [px, pz] = toMap(playerPos.x, playerPos.z);
     mctx.save();
     mctx.translate(px, pz);
-    mctx.rotate(Math.atan2(Math.sin(heading), Math.cos(heading)) + Math.PI);
+    // The arrow is drawn pointing up (0,-1); rotating by PI - heading
+    // points it along the player's forward vector (sin h, cos h) on the
+    // map (x right, z down). The old `heading + PI` mirrored it left-right.
+    mctx.rotate(Math.PI - heading);
     mctx.fillStyle = '#37e07a';
     mctx.beginPath();
     mctx.moveTo(0, -7); mctx.lineTo(5, 6); mctx.lineTo(-5, 6); mctx.closePath();
     mctx.fill();
     mctx.restore();
-    if (beaconPos) { /* beacon is the same point as the target on the map */ }
   }
 
   return {

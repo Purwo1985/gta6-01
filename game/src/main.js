@@ -6,7 +6,7 @@
 import { THREE } from './three.js';
 import { CITY, CAR, STEP, WORLD_SEED, MISSIONS } from './config.js';
 import { createRandom } from './random.js';
-import { buildCity } from './city.js';
+import { buildCity, resolveCollisions } from './city.js';
 import { createPlayer } from './player.js';
 import { createCar, pickCarColor } from './vehicles.js';
 import { createTraffic } from './traffic.js';
@@ -53,7 +53,7 @@ let ramCooldown = 0;
 let healthRegen = 0;
 let debugDriveInput = null;
 let debugWalkInput = null;
-let lastCrimeToast = 0;
+let lastPickupHint = 99;
 
 function spawnParkedCars() {
   for (const c of parkedCars) c.remove();
@@ -96,6 +96,9 @@ function exitCar() {
   const fx = Math.sin(currentCar.heading);
   const fz = Math.cos(currentCar.heading);
   player.pos.set(currentCar.pos.x - fx * 3, 0, currentCar.pos.z - fz * 3);
+  // The drop point can sit inside a building when the car is parked
+  // against one; push Rico out of it instead of trapping him in a wall.
+  resolveCollisions(city.colliders, city.half, player.pos, 0.6);
   player.group.position.copy(player.pos);
   player.group.visible = true;
   parkedCars.push(currentCar);
@@ -204,7 +207,7 @@ function tick(dt, isShotStep) {
   if (!isShotStep || drive || walk) {
     if (currentCar) {
       const fwd = drive ? drive.forward : input.isDown(ACTION.forward);
-      const back = drive ? false : input.isDown(ACTION.back);
+      const back = drive ? !!drive.reverse : input.isDown(ACTION.back);
       const left = drive ? false : input.isDown(ACTION.left);
       const right = drive ? false : input.isDown(ACTION.right);
       const steer = (drive ? drive.steer : 0) + (left ? -1 : 0) + (right ? 1 : 0);
@@ -228,7 +231,7 @@ function tick(dt, isShotStep) {
         : input;
       player.update(dt, fake, city.colliders, city.half);
       audio.setEngine(0, false);
-      if (!walk && input.wasPressed(ACTION.punch)) resolvePunch(player, traffic, police, audio, onCrime);
+      if (!walk && input.wasPressed(ACTION.punch)) resolvePunch(player, traffic, police, audio, onCrime, city);
       if (!walk && input.wasPressed(ACTION.enterCar)) {
         const car = nearestParked(4.5);
         if (car) enterCar(car);
@@ -256,13 +259,18 @@ function tick(dt, isShotStep) {
   } else if (mState && mState.need === 'pickup' && currentCar) {
     missions.setPassenger(true);
     hud.toast('Tio Benny is in! Drive him to the Palms Hotel.');
+  } else if (mState && mState.need === 'pickup' && !currentCar && lastPickupHint > 4) {
+    // On foot at the plaza: say what is missing, throttled so it does not
+    // spam every tick while the player stands at the marker.
+    lastPickupHint = 0;
+    hud.toast('Tio Benny needs a car — steal one and come back (E)');
   }
   // Slow health regen when the heat is off.
   if (police.wanted === 0 && player.health < 100) {
     healthRegen += dt;
     if (healthRegen > 1) { player.health = Math.min(100, player.health + 2); healthRegen = 0; }
   }
-  lastCrimeToast += dt;
+  lastPickupHint += dt;
 
   // --- camera ---
   if (camMode === 'aerial' && shotCamera) {
@@ -323,19 +331,24 @@ function runGame() {
   spawnParkedCars();
   missions.start(Math.min(save.missionIndex, MISSIONS.length - 1));
   hud.showScreen('start');
+  // Enter starts the game; so does a click/tap on the title screen, for
+  // players who reach for the mouse before the keyboard.
+  function confirmStart() {
+    if (screen !== 'start' && screen !== 'over') return;
+    audio.unlock();
+    audio.click();
+    if (screen === 'over') { player.reset(0, 30); player.group.visible = true; }
+    screen = 'play';
+    hud.showScreen('play');
+  }
+  window.addEventListener('pointerdown', confirmStart);
   let last = performance.now();
   let accumulator = 0;
   function frame(now) {
     requestAnimationFrame(frame);
     const elapsed = Math.min(0.25, (now - last) / 1000);
     last = now;
-    if (input.wasPressed(ACTION.confirm) && (screen === 'start' || screen === 'over')) {
-      audio.unlock();
-      audio.click();
-      if (screen === 'over') { player.reset(0, 30); player.group.visible = true; }
-      screen = 'play';
-      hud.showScreen('play');
-    }
+    if (input.wasPressed(ACTION.confirm)) confirmStart();
     if (input.wasPressed(ACTION.pause) && (screen === 'play' || screen === 'pause')) {
       screen = screen === 'play' ? 'pause' : 'play';
       hud.showScreen(screen === 'play' ? 'play' : 'pause');

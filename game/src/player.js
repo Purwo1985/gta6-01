@@ -95,6 +95,9 @@ export function createPlayer(scene) {
       this.pos.set(x, 0, z);
       this.health = PLAYER.maxHealth;
       this.heading = 0;
+      // A fresh spawn carries no leftover punch cooldown or walk cycle.
+      this.punchTimer = 0;
+      this.walkPhase = 0;
     },
   };
 }

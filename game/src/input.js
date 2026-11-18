@@ -46,6 +46,9 @@ export function createInput(canvas) {
 
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
+  // Losing the window (alt-tab) used to leave keys stuck down, so Rico
+  // kept walking or driving with no one at the keyboard.
+  window.addEventListener('blur', () => { keys.clear(); pressed.clear(); });
   canvas.addEventListener('mousedown', onMouseDown);
   window.addEventListener('mousemove', onMouseMove);
   window.addEventListener('mouseup', onMouseUp);

@@ -144,11 +144,14 @@ export function buildCity(scene, rng) {
   const leafMat = new THREE.MeshLambertMaterial({ color: 0x2f8f4e });
   for (let x = -half; x <= half; x += 24) {
     for (const z of [half - 8, -half + 8]) {
+      // One offset per palm: the crown used to roll its own, so crowns
+      // floated beside their trunks instead of on top of them.
+      const ox = x + rng.range(-4, 4);
       const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 7, 6), trunkMat);
-      trunk.position.set(x + rng.range(-4, 4), 3.5, z);
+      trunk.position.set(ox, 3.5, z);
       group.add(trunk);
       const crown = new THREE.Mesh(new THREE.ConeGeometry(3.2, 3.4, 7), leafMat);
-      crown.position.set(x + rng.range(-4, 4), 8.2, z);
+      crown.position.set(ox, 8.2, z);
       group.add(crown);
     }
   }
